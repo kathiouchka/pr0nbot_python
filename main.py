@@ -1,14 +1,12 @@
 import discord
+from discord.ext import commands
 import requests
 import random
-import json
 import os
-from discord.ext import commands
-from discord import Intents
 
 # Bot setup
-intents = Intents.default()
-bot = discord.Bot(intents=intents)
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Common API URL and headers
 API_URL = "https://api.scrolller.com/api/v2/graphql"
@@ -113,13 +111,13 @@ query SubredditQuery($url: String!, $filter: SubredditPostFilter, $iterator: Str
 }
 """
 
-@bot.slash_command(name="sync", description="Sync slash commands")
+@bot.command(name="sync", description="Sync slash commands")
 async def sync(ctx):
-    if ctx.author.id == os.getenv("DISCORD_USER_ID") :  # Replace with your Discord user ID
+    if ctx.author.id == int(os.getenv("DISCORD_USER_ID")):
         await bot.sync_commands()
-        await ctx.respond("Commands synced!")
+        await ctx.send("Commands synced!")
     else:
-        await ctx.respond("You don't have permission to use this command.")
+        await ctx.send("You don't have permission to use this command.")
 
 def make_api_request(query, variables):
     data = {
@@ -137,10 +135,8 @@ def make_api_request(query, variables):
 
 @bot.slash_command(name="pr0n", description="Fetch random NSFW content")
 async def pr0n(ctx):
-    print("Fetching data...")
     data = make_api_request(DISCOVER_QUERY, {"limit": 10, "filter": None, "hostsDown": ["NANO", "PICO"]})
     if data:
-        print("Data received.")
         urls = []
         subTitles = []
 
@@ -179,10 +175,8 @@ async def sub_video(ctx, subreddit: str):
         children = subreddit_data.get("children", {}).get("items", [])
         
         if children:
-            # Select a random post from the children
             post = random.choice(children)
             
-            # Find the best quality, optimized video URL
             best_video = None
             max_width = 0
             for media_source in post.get("mediaSources", []):
@@ -216,7 +210,6 @@ async def sub_picture(ctx, subreddit: str):
         children = subreddit_data.get("children", {}).get("items", [])
         
         if children:
-            # Select a random post from the children
             post = random.choice(children)
             
             # Find the best quality, optimized image URL
