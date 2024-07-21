@@ -8,6 +8,24 @@ import os
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix='/', intents=intents)
 
+guild_usage_counts = {}
+
+
+async def check_nsfw_and_increment(ctx):
+    if not ctx.channel.is_nsfw():
+        await ctx.respond("This command can only be used in NSFW channels.")
+        return False
+
+    guild_id = ctx.guild.id
+    if guild_id not in guild_usage_counts:
+        guild_usage_counts[guild_id] = 0
+
+    guild_usage_counts[guild_id] += 1
+    if guild_usage_counts[guild_id] % 100 == 0:
+        await ctx.send("If you enjoy using this bot, please consider donating:\nSOLANA: 7s3sge7eY9z3qMcipiqUt8UovrJ3at2aVb5kmkh8n9KX")
+
+    return True
+
 # Common API URL and headers
 API_URL = "https://api.scrolller.com/api/v2/graphql"
 HEADERS = {
@@ -111,13 +129,6 @@ query SubredditQuery($url: String!, $filter: SubredditPostFilter, $iterator: Str
 }
 """
 
-@bot.command(name="sync", description="Sync slash commands")
-async def sync(ctx):
-    if ctx.author.id == int(os.getenv("DISCORD_USER_ID")):
-        await bot.sync_commands()
-        await ctx.send("Commands synced!")
-    else:
-        await ctx.send("You don't have permission to use this command.")
 
 def make_api_request(query, variables):
     data = {
@@ -126,16 +137,21 @@ def make_api_request(query, variables):
         "authorization": None
     }
     try:
-        response = requests.post(API_URL, headers=HEADERS, json=data, timeout=10)
+        response = requests.post(
+            API_URL, headers=HEADERS, json=data, timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
         return None
 
+
 @bot.slash_command(name="pr0n", description="Fetch random NSFW content")
 async def pr0n(ctx):
-    data = make_api_request(DISCOVER_QUERY, {"limit": 10, "filter": None, "hostsDown": ["NANO", "PICO"]})
+    if not await check_nsfw_and_increment(ctx):
+        return
+    data = make_api_request(
+        DISCOVER_QUERY, {"limit": 10, "filter": None, "hostsDown": ["NANO", "PICO"]})
     if data:
         urls = []
         subTitles = []
@@ -161,8 +177,11 @@ async def pr0n(ctx):
         print("No data received.")
         await ctx.respond("No data received or an error occurred.")
 
+
 @bot.slash_command(name="pr0n_video", description="Fetch video from a specific subreddit")
 async def sub_video(ctx, subreddit: str):
+    if not await check_nsfw_and_increment(ctx):
+        return
     variables = {
         "limit": 10,
         "url": f"/r/{subreddit}",
@@ -173,10 +192,10 @@ async def sub_video(ctx, subreddit: str):
     if data and "data" in data and "getSubreddit" in data["data"]:
         subreddit_data = data["data"]["getSubreddit"]
         children = subreddit_data.get("children", {}).get("items", [])
-        
+
         if children:
             post = random.choice(children)
-            
+
             best_video = None
             max_width = 0
             for media_source in post.get("mediaSources", []):
@@ -196,8 +215,11 @@ async def sub_video(ctx, subreddit: str):
     else:
         await ctx.respond(f"Failed to fetch video data from r/{subreddit}")
 
+
 @bot.slash_command(name="pr0n_image", description="Fetch picture from a specific subreddit")
 async def sub_picture(ctx, subreddit: str):
+    if not await check_nsfw_and_increment(ctx):
+        return
     variables = {
         "limit": 10,
         "url": f"/r/{subreddit}",
@@ -208,10 +230,10 @@ async def sub_picture(ctx, subreddit: str):
     if data and "data" in data and "getSubreddit" in data["data"]:
         subreddit_data = data["data"]["getSubreddit"]
         children = subreddit_data.get("children", {}).get("items", [])
-        
+
         if children:
             post = random.choice(children)
-            
+
             # Find the best quality, optimized image URL
             best_image = None
             max_width = 0
@@ -231,6 +253,7 @@ async def sub_picture(ctx, subreddit: str):
             await ctx.respond(f"No posts found in r/{subreddit}")
     else:
         await ctx.respond(f"Failed to fetch picture data from r/{subreddit}")
+
 
 @bot.event
 async def on_ready():
